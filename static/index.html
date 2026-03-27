@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UrboFlow — Urban Mobility Demand Forecasting</title>
+    <meta name="description" content="AI-powered urban mobility demand forecasting dashboard with real-time predictions, weather integration, and graph-based analytics for smart city zones.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+    <!-- Vis.js Network -->
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+    <link href="https://unpkg.com/vis-network@9.1.9/styles/vis-network.min.css" rel="stylesheet">
+
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Heat -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="app-loader" class="app-loader">
+        <div class="loader-content">
+            <div class="loader-spinner">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <h2>UrboFlow</h2>
+            <p>Initializing Forecasting Engine...</p>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#grad1)" stroke-width="2">
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#6366f1"/>
+                            <stop offset="100%" style="stop-color:#06b6d4"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+                <span class="logo-text">UrboFlow</span>
+            </div>
+            <span class="header-badge">AI-Powered Forecasting</span>
+        </div>
+        <div class="header-right">
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span>Live</span>
+            </div>
+            <div class="clock" id="header-clock"></div>
+            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Alert Banner -->
+        <div id="peak-alert" class="alert-banner hidden">
+            <div class="alert-icon">⚡</div>
+            <div class="alert-text">
+                <strong>Peak Demand Alert!</strong>
+                <span id="peak-alert-msg"></span>
+            </div>
+            <button class="alert-close" onclick="document.getElementById('peak-alert').classList.add('hidden')">✕</button>
+        </div>
+
+        <!-- Top Stats Row -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card" id="stat-model">
+                <div class="stat-icon purple">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="10"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Model Accuracy</span>
+                    <span class="stat-value" id="stat-r2">—</span>
+                </div>
+            </div>
+            <div class="stat-card" id="stat-zones">
+                <div class="stat-icon blue">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Active Zones</span>
+                    <span class="stat-value" id="stat-zone-count">—</span>
+                </div>
+            </div>
+            <div class="stat-card" id="stat-weather-card">
+                <div class="stat-icon teal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Weather</span>
+                    <span class="stat-value" id="stat-weather">—</span>
+                </div>
+            </div>
+            <div class="stat-card" id="stat-best">
+                <div class="stat-icon green">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Best Zone</span>
+                    <span class="stat-value" id="stat-best-zone">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="dashboard-grid">
+            <!-- Left: Controls -->
+            <section class="card controls-card">
+                <div class="card-header">
+                    <h2>🎯 Predict Demand</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="zone-select">Zone</label>
+                        <select id="zone-select" class="input-field"></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="hour-input">Hour</label>
+                            <div class="hour-picker">
+                                <select id="hour-display" class="input-field hour-select"></select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="day-select">Day Type</label>
+                            <select id="day-select" class="input-field">
+                                <option value="Weekday">Weekday</option>
+                                <option value="Weekend">Weekend</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="weather-select">Weather</label>
+                        <select id="weather-select" class="input-field"></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="temp-input">Temp °C</label>
+                            <input type="number" id="temp-input" class="input-field" value="30" min="0" max="50" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="humidity-input">Humidity %</label>
+                            <input type="number" id="humidity-input" class="input-field" value="55" min="0" max="100">
+                        </div>
+                    </div>
+
+                    <!-- Weather Fetch -->
+                    <div class="weather-fetch-row">
+                        <input type="text" id="city-input" class="input-field" value="Bhilai" placeholder="City name">
+                        <button class="btn btn-secondary" id="fetch-weather-btn" onclick="fetchWeather()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                            </svg>
+                            Fetch Weather
+                        </button>
+                    </div>
+
+                    <button class="btn btn-primary btn-predict" id="predict-btn" onclick="predict()">
+                        <span class="btn-text">⚡ Predict Demand</span>
+                        <span class="btn-loading hidden">
+                            <div class="spinner-small"></div>
+                            Predicting...
+                        </span>
+                    </button>
+                    <button class="btn btn-outline" onclick="predictAll()">
+                        📊 Predict All Zones
+                    </button>
+                </div>
+
+                <!-- Result Card -->
+                <div id="result-card" class="result-card hidden">
+                    <div class="result-header">
+                        <span class="result-zone" id="result-zone"></span>
+                        <span class="result-badge" id="result-badge"></span>
+                    </div>
+                    <div class="result-demand">
+                        <span class="result-value" id="result-demand">0</span>
+                        <span class="result-unit">rides/hr</span>
+                    </div>
+                    <div class="result-details">
+                        <div class="result-detail">
+                            <span>⏰ Time</span>
+                            <span id="result-time"></span>
+                        </div>
+                        <div class="result-detail">
+                            <span>📅 Day</span>
+                            <span id="result-day"></span>
+                        </div>
+                        <div class="result-detail">
+                            <span>🌤️ Weather</span>
+                            <span id="result-weather"></span>
+                        </div>
+                        <div class="result-detail">
+                            <span>🔗 Neighbor Influence</span>
+                            <span id="result-neighbor"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center: Charts -->
+            <section class="card chart-card">
+                <div class="card-header">
+                    <h2>📈 Demand Trends (24h)</h2>
+                    <div class="card-actions">
+                        <button class="btn-icon" onclick="loadTrends()" title="Refresh trends">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body chart-container">
+                    <canvas id="trend-chart"></canvas>
+                </div>
+                <div class="peak-info" id="peak-info">
+                    <span class="peak-icon">⏰</span>
+                    <span>Peak Hour: <strong id="peak-hour-display">—</strong> | Peak Demand: <strong id="peak-demand-display">—</strong></span>
+                </div>
+            </section>
+
+            <!-- Right: Weather & Best Zone -->
+            <section class="card weather-card">
+                <div class="card-header">
+                    <h2>🌦️ Weather & Insights</h2>
+                </div>
+                <div class="card-body">
+                    <div class="weather-display" id="weather-display">
+                        <div class="weather-main">
+                            <div class="weather-temp" id="weather-temp">—°C</div>
+                            <div class="weather-condition" id="weather-condition">—</div>
+                        </div>
+                        <div class="weather-details">
+                            <div class="weather-detail">
+                                <span>💧 Humidity</span>
+                                <span id="weather-humidity">—%</span>
+                            </div>
+                            <div class="weather-detail">
+                                <span>💨 Wind</span>
+                                <span id="weather-wind">— m/s</span>
+                            </div>
+                            <div class="weather-detail">
+                                <span>📍 City</span>
+                                <span id="weather-city">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Driver Recommendation -->
+                    <div class="recommendation-box" id="recommendation-box">
+                        <h3>🏆 Driver Recommendation</h3>
+                        <div class="reco-content">
+                            <div class="reco-zone" id="reco-zone">—</div>
+                            <div class="reco-demand" id="reco-demand">Predicted: — rides/hr</div>
+                            <div class="reco-tip">Head to this zone for maximum ride requests!</div>
+                        </div>
+                    </div>
+
+
+                </div>
+            </section>
+        </div>
+
+        <!-- Second Row -->
+        <div class="dashboard-grid-2">
+            <!-- Zone Network Graph -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>🔗 Zone Network Graph</h2>
+                    <div class="card-actions">
+                        <span class="legend-item"><span class="legend-dot high"></span>High</span>
+                        <span class="legend-item"><span class="legend-dot medium"></span>Medium</span>
+                        <span class="legend-item"><span class="legend-dot low"></span>Low</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="network-graph" class="network-container"></div>
+                </div>
+            </section>
+
+            <!-- Interactive Map -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>🗺️ City Map & Heatmap</h2>
+                </div>
+                <div class="card-body">
+                    <div id="city-map" class="map-container"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Third Row: Heatmap + All Zones -->
+        <div class="dashboard-grid-3">
+            <!-- Heatmap Chart -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>📍 Area-wise Demand Heatmap</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadHeatmap()">Refresh</button>
+                </div>
+                <div class="card-body">
+                    <div class="heatmap-wrapper">
+                        <canvas id="heatmap-chart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- All Zones Comparison -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>📊 All Zones Comparison</h2>
+                </div>
+                <div class="card-body">
+                    <div id="all-zones-chart-wrapper">
+                        <canvas id="all-zones-chart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- History Panel -->
+        <section class="card history-card">
+            <div class="card-header">
+                <h2>📜 Prediction History</h2>
+                <div class="card-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="loadHistory()">Refresh</button>
+                    <button class="btn btn-danger btn-sm" onclick="clearHistory()">Clear</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrapper">
+                    <table class="history-table" id="history-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Time</th>
+                                <th>Zone</th>
+                                <th>Hour</th>
+                                <th>Day</th>
+                                <th>Weather</th>
+                                <th>Temp</th>
+                                <th>Demand</th>
+                                <th>Category</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <tr><td colspan="9" class="empty-state">No predictions yet. Run a prediction to see history.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Model Info Footer -->
+        <footer class="footer">
+            <div class="footer-info">
+                <span>UrboFlow v1.0</span>
+                <span>•</span>
+                <span>Random Forest Regressor</span>
+                <span>•</span>
+                <span>Graph-based Feature Engineering</span>
+                <span>•</span>
+                <span id="footer-mae">MAE: —</span>
+                <span>•</span>
+                <span id="footer-r2">R²: —</span>
+            </div>
+        </footer>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
